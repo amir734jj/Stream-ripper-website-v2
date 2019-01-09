@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using StructureMap;
+using Swashbuckle.AspNetCore.Swagger;
 using static Api.Utilities.ConnectionStringUtility;
 using HostingEnvironmentExtension = Api.Extensions.HostingEnvironmentExtension;
 
@@ -16,7 +18,7 @@ namespace Api
     public class Startup
     {
         private readonly IHostingEnvironment _env;
-        
+
         private readonly IConfigurationRoot _configuration;
 
         public Startup(IHostingEnvironment env)
@@ -32,8 +34,12 @@ namespace Api
             _configuration = builder.Build();
         }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
-        public void ConfigureServices(IServiceCollection services)
+        /// <summary>
+        /// This method gets called by the runtime. Use this method to add services to the container.
+        /// </summary>
+        /// <param name="services"></param>
+        /// <returns></returns>
+        public IServiceProvider ConfigureServices(IServiceCollection services)
         {
             services.Configure<CookiePolicyOptions>(options =>
             {
@@ -46,7 +52,7 @@ namespace Api
             {
                 if (HostingEnvironmentExtension.IsLocalhost(_env))
                 {
-                    builder.UseSqlite(_configuration.GetValue<string>("ConnectionStrings:Sqlite"));    
+                    builder.UseSqlite(_configuration.GetValue<string>("ConnectionStrings:Sqlite"));
                 }
                 else
                 {
@@ -54,16 +60,49 @@ namespace Api
                                       ?? throw new Exception("DATABASE_URL is null"));
                 }
             });
-            
+
             services.AddDefaultIdentity<IdentityUser>()
                 .AddEntityFrameworkStores<ApplicationDbContext>();
 
+            services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new Info {Title = "Milwaukee-Internationals-API", Version = "v1"});
+            });
+
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
+
+            var container = new Container(opt =>
+            {
+                // Register stuff in container, using the StructureMap APIs...
+                opt.Scan(_ =>
+                {
+                    _.AssemblyContainingType(typeof(Startup));
+                    _.Assembly("Logic");
+                    _.Assembly("Dal");
+                    _.WithDefaultConventions();
+                });
+
+                // Populate the container using the service collection
+                opt.Populate(services);
+            });
+
+            return container.GetInstance<IServiceProvider>();
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        /// <summary>
+        /// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        /// </summary>
+        /// <param name="app"></param>
+        /// <param name="env"></param>
         public void Configure(IApplicationBuilder app, IHostingEnvironment env)
         {
+            // Enable middleware to serve generated Swagger as a JSON endpoint.
+            app.UseSwagger();
+
+            // Enable middleware to serve swagger-ui (HTML, JS, CSS, etc.), 
+            // specifying the Swagger JSON endpoint.
+            app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "My API V1"); });
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
