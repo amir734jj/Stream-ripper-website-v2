@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Reflection;
+using AutoMapper;
 using Dal;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -60,6 +62,9 @@ namespace Api
                                       ?? throw new Exception("DATABASE_URL is null"));
                 }
             });
+            
+            // All the other service configuration.
+            services.AddAutoMapper(x => { x.AddProfiles(Assembly.Load("Models")); });
 
             services.AddDefaultIdentity<IdentityUser>()
                 .AddEntityFrameworkStores<ApplicationDbContext>();
